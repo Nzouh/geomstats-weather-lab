@@ -113,7 +113,7 @@
   mathematical structure for weather data on Earth: scalar fields over the sphere $S^2$,
   rotation symmetries via the group $SO(3)$, and geometric statistics that respect both. This
   article puts that structure to work on real ERA5 temperature data. We track the center of
-  the June 2021 Pacific Northwest heat dome (it migrated 2,635&nbsp;km in seven days) and the
+  the June 2021 Pacific Northwest heat dome (its center traced a 2,635&nbsp;km path over seven days) and the
   year-to-year variability of North American summer heat (77% of the variance lies along a
   single geodesic axis), and we show with reproducible numbers where flat latitude-longitude
   shortcuts break, from a few meters of error up to 17,805&nbsp;km, and where geometry fixes
@@ -131,7 +131,8 @@ function</p>
 $$ x : S^2 \to \mathbb{R}. $$
 
 <p>Papillon, Sanborn, Mathe and colleagues give a name to objects like this, a
-Euclidean-valued signal over a manifold domain (Card&nbsp;S6 in their taxonomy), and their
+Euclidean-valued signal over a manifold domain (Card&nbsp;S6 in their taxonomy; card and
+figure numbers throughout refer to the arXiv v2 version of the paper), and their
 illustration of it is, as it happens, this very temperature-on-a-sphere example from Atmo.
 The naming earns its keep by isolating what matters: the values are ordinary numbers, but the
 domain is curved, so any statistic that summarizes <em>where</em> something happens has to
@@ -162,6 +163,9 @@ The great-circle, or geodesic, distance between two points is</p>
 
 $$ d(p, q) = \arccos\langle p, q \rangle. $$
 
+<p>This is an angle in radians; multiplying by the Earth's radius, about 6,371&nbsp;km, gives
+the kilometer distances reported throughout.</p>
+
 <p>The center of a set of points is the <b>weighted Frechet mean</b>, the point that
 minimizes the sum of squared geodesic distances to the data:</p>
 
@@ -177,8 +181,11 @@ $$ v = \frac{\sum_i w_i \log_\mu(p_i)}{\sum_i w_i}, \qquad \mu \leftarrow \exp_\
 <p>repeated until $\lVert v \rVert \to 0$. By construction the Frechet mean stays on the
 manifold, where the ordinary Euclidean average would fall off it, and that contrast is
 exactly why it is the right notion of center on a curved space (Figure&nbsp;6 of the paper
-illustrates precisely this). The same log and exp maps are what later make tangent-space PCA
-meaningful.</p>
+illustrates precisely this). One caveat for honesty: the minimizer is guaranteed unique only
+when the data are concentrated enough, sitting well within a hemisphere; every real-data case
+below is far inside that regime, and it is only widely spread, near-antipodal configurations
+that can make the center ambiguous. The same log and exp maps are what later make
+tangent-space PCA meaningful.</p>
 
 <h2><span class="no">3</span>Geometry: Euclidean shortcuts fail when the sphere matters</h2>
 
@@ -198,8 +205,8 @@ and the two answers pull apart.</p>
   <img src="spread_gap.png" alt="The naive-vs-geodesic gap grows with how far the data spreads">
   <figcaption><b>Figure 1.</b> The gap between the naive (chordal) mean and the geodesic
   Frechet mean, as a fixed configuration is scaled from a tiny patch to nearly hemispheric.
-  The dashed line is not a point on the curve: it marks the worst realistic case, a
-  near-antipodal global configuration, whose gap sits far above the typical trend.</figcaption>
+  The dashed line is not a point on the curve: it marks the worst realistic case, an
+  adversarial global configuration, whose gap sits far above the typical trend.</figcaption>
 </figure>
 
 <p>Three real reference cases anchor the picture:</p>
@@ -208,7 +215,7 @@ and the two answers pull apart.</p>
   <tr><th>data spread</th><th>angular size</th><th>gap between naive and geodesic mean</th></tr>
   <tr><td>tight cluster (three Texas cities)</td><td>&approx; 3&deg;</td><td>0.0 km</td></tr>
   <tr><td>continental (New York, London, Reykjavik, Lisbon)</td><td>&approx; 33&deg;</td><td>40.7 km</td></tr>
-  <tr><td>global spread (near-antipodal)</td><td>&approx; 94&deg;</td><td>7,758.9 km</td></tr>
+  <tr><td>global spread (adversarial configuration)</td><td>&approx; 94&deg;</td><td>7,758.9 km</td></tr>
 </table>
 
 <p>There is a sharper failure at coordinate seams. If a cluster straddles the &plusmn;180&deg;
@@ -223,7 +230,7 @@ how much of the globe the data spans, and it matters absolutely at seams and pol
 
 <h2><span class="no">4</span>Algebra: the answer should rotate with the globe</h2>
 
-<p>The reason the Frechet mean has no bad points on the sphere is symmetry. If we rotate the
+<p>The reason the Frechet mean has no bad coordinates on the sphere is symmetry. If we rotate the
 data by a rotation $R \in SO(3)$, a coordinate-free center must rotate by the same $R$:</p>
 
 $$ \mu(\{R p_i\}) = R \, \mu(\{p_i\}). $$
@@ -242,9 +249,10 @@ data on the sphere, not on how we painted latitude and longitude onto it.</p>
 
 <p>The message is not that group theory is elegant. It is that a good statistic respects the
 symmetries of the physical domain, and that respect is exactly why it stays correct
-everywhere. The daily centers we extract later are themselves just points on the sphere, and
-changing the longitude origin is one of these rotations acting on them, so the same
-equivariance protects the whole pipeline.</p>
+everywhere. The daily centers we extract later are themselves just points on the sphere,
+which is the paper's Card&nbsp;C2, whose own example is a storm's location on the earth; and
+changing the longitude origin is one of these rotations acting on them, which is exactly
+Card&nbsp;C5. So the same equivariance protects the whole pipeline.</p>
 
 <div class="valbox">
   <h3>Validation: does the math actually check out?</h3>
@@ -254,8 +262,8 @@ equivariance protects the whole pipeline.</p>
   <ul>
     <li>Analytic von Mises-Fisher center recovered with <b>0.00&nbsp;km</b> error.</li>
     <li>Our from-definition Karcher implementation agrees with GeomStats to
-      $1.90 \times 10^{-4}$&nbsp;km (about 0.19&nbsp;m), after tightening GeomStats'
-      optimizer, whose default stops about 2.7&nbsp;km short. The from-definition version
+      $1.90 \times 10^{-4}$&nbsp;km (about 0.19&nbsp;m), after tightening the optimizer of
+      GeomStats 2.8.0, whose default stopping tolerance leaves it about 2.7&nbsp;km short. The from-definition version
       exposed that under-convergence.</li>
     <li>First-order optimality residual
       $\lVert \sum_i w_i \log_\mu(p_i) \rVert = 5.99 \times 10^{-16}$.</li>
@@ -297,7 +305,8 @@ the poles;<br>
 
 <p>The recovered center starts over the US Southwest and marches north to the US-Canada
 border by June 30, matching the real event, which culminated in record heat in British
-Columbia. The total Frechet-mean migration is <b>2,635&nbsp;km over seven days</b>.</p>
+Columbia. The total Frechet-mean migration, summed along the daily geodesic hops, is
+<b>2,635&nbsp;km over seven days</b>.</p>
 
 <p>Honest reading: this is a descriptive tracker, not a forecast model, and this particular
 event is regional and mid-latitude, so the day-to-day naive-versus-Frechet gap is only 13 to
@@ -318,11 +327,12 @@ on $S^2$. We use the anomaly rather than absolute temperature on purpose: absolu
 heat always centers on the Southwest deserts, so its center barely moves, while the anomaly
 captures the real year-to-year signal.</p>
 
-<p>Then we run Principal Geodesic Analysis, which is simply PCA done the right way on a
-curved space (the paper's Figure&nbsp;8 places these tangent-space methods within the wider
-family of manifold latent embeddings): take the Frechet mean of the 30 centers, map every
-center into the tangent plane at that mean with the log map, and run ordinary PCA there. The
-tangent covariance is</p>
+<p>Then we run Principal Geodesic Analysis in its standard tangent-space form, which is,
+strictly, the first-order approximation of Fletcher's exact PGA, what the paper calls tangent
+PCA (its Figure&nbsp;8 places these tangent-space methods within the wider family of manifold
+latent embeddings). The recipe is PCA done the right way on a curved space: take the Frechet
+mean of the 30 centers, map every center into the tangent plane at that mean with the log
+map, and run ordinary PCA there. The tangent covariance is</p>
 
 $$ C = \frac{1}{N} \sum_i u_i u_i^\top, \qquad u_i = \log_\mu(p_i), $$
 
@@ -333,14 +343,16 @@ are $r_k = \lambda_k / \sum_j \lambda_j$.</p>
   <img src="era5_pga_interannual.png" alt="Interannual variability of North American summer heat, 1991 to 2020">
   <figcaption><b>Figure 4.</b> Thirty summers of heat-anomaly centers (blue), their Frechet
   mean (black), the principal geodesic axes with explained variance, and the 2$\sigma$
-  geodesic confidence ellipse.</figcaption>
+  geodesic dispersion ellipse of the yearly centers.</figcaption>
 </figure>
 
 <p>The result is a clean, coordinate-free summary of interannual variability:</p>
 
 <p>mean center of anomalous summer heat at $44.8^\circ$N, $102.5^\circ$W; the first geodesic
-axis explains <b>77%</b> of the variance and runs roughly east-west; the second axis explains
-23%; and the $\pm 2\sigma$ span of the first axis is about <b>3,894&nbsp;km</b>.</p>
+axis explains <b>77%</b> of the variance (against the 50% an isotropic cloud would give on
+the two-dimensional tangent plane) and runs roughly east-west; the second axis explains 23%;
+and the distance between the $-2\sigma$ and $+2\sigma$ points along the first axis is about
+<b>3,894&nbsp;km</b>.</p>
 
 <p>In plain terms, the region that runs unusually hot in a given summer shifts mostly east or
 west, far more than north or south. This is a descriptive, not causal, result, and 30 summers
@@ -364,7 +376,11 @@ the library and, in one case, surfacing a loose default tolerance in it.</p>
   <li>no new theorem;</li>
   <li>no operational forecast, this is reanalysis data and descriptive diagnostics;</li>
   <li>no claim that a single Frechet mean handles multi-center storm fields without first
-    segmenting them.</li>
+    segmenting them;</li>
+  <li>the extracted centers depend on the hot-region threshold, and moving that threshold
+    moves them;</li>
+  <li>both applications work inside a chosen ERA5 analysis window, so every center is
+    conditional on that box.</li>
 </ul>
 
 <p>The value is a reproducible bridge from the paper's structure to a real weather-data
