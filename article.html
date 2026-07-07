@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Data Lives on a Sphere. Our Statistics Should Too.</title>
+<meta name="description" content="Using geometry and group symmetry to track heat patterns on Earth, with GeomStats and ERA5 data.">
+<script>
+  window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --text: #1c2733;
+    --muted: #5b6770;
+    --accent: #12355b;
+    --rule: #d8dee4;
+    --box: #f4f7fa;
+    --bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --text: #e4e9ee;
+      --muted: #9aa7b1;
+      --accent: #9dbfe8;
+      --rule: #33404c;
+      --box: #1b242d;
+      --bg: #10161c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.65 Georgia, 'Times New Roman', serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  header { text-align: center; margin-bottom: 2.5rem; }
+  h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 0.6rem; }
+  .subtitle { font-style: italic; color: var(--muted); font-size: 1.1rem; margin: 0 0 1rem; }
+  .byline { color: var(--muted); font-size: 0.92rem; font-family: system-ui, sans-serif; }
+  h2 {
+    font-size: 1.35rem; margin: 2.6rem 0 0.8rem;
+    padding-top: 1.2rem; border-top: 1px solid var(--rule);
+  }
+  h2 .no { color: var(--muted); margin-right: 0.45rem; }
+  p { margin: 0.9rem 0; }
+  em { font-style: italic; }
+  a { color: var(--accent); }
+  .abstract {
+    background: var(--box); border-left: 3px solid var(--accent);
+    padding: 1rem 1.3rem; margin: 0 0 1rem; font-size: 0.97rem;
+  }
+  .abstract .label {
+    font-family: system-ui, sans-serif; font-weight: 700;
+    font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); display: block; margin-bottom: 0.4rem;
+  }
+  figure { margin: 1.8rem 0; }
+  figure img {
+    max-width: 100%; height: auto; display: block; margin: 0 auto;
+    border: 1px solid var(--rule); border-radius: 4px; background: #fff;
+  }
+  figcaption {
+    margin-top: 0.6rem; font-size: 0.88rem; color: var(--muted);
+    font-family: system-ui, sans-serif; line-height: 1.5;
+  }
+  figcaption b { color: var(--text); }
+  table {
+    border-collapse: collapse; margin: 1.2rem auto; font-size: 0.92rem;
+    font-family: system-ui, sans-serif;
+  }
+  th, td { border: 1px solid var(--rule); padding: 0.45rem 0.8rem; text-align: left; }
+  th { background: var(--box); }
+  .valbox {
+    background: var(--box); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 1.1rem 1.4rem; margin: 2rem 0; font-size: 0.94rem;
+  }
+  .valbox h3 { margin: 0 0 0.6rem; font-size: 1.05rem; }
+  .valbox ul { margin: 0.4rem 0 0.8rem 1.2rem; padding: 0; }
+  .valbox li { margin: 0.3rem 0; }
+  pre {
+    background: var(--box); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 0.9rem 1.1rem; overflow-x: auto; font-size: 0.85rem;
+  }
+  code { font-family: ui-monospace, Consolas, monospace; }
+  .refs { font-size: 0.92rem; }
+  .refs li { margin: 0.5rem 0; }
+  .limits li { margin: 0.25rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Weather Data Lives on a Sphere.<br>Our Statistics Should Too.</h1>
+  <p class="subtitle">Using geometry and group symmetry to track heat patterns on Earth</p>
+  <p class="byline">Nabil Zouhari &middot; July 2026 &middot; built with
+    <a href="https://geomstats.github.io/">GeomStats</a> and
+    <a href="https://cds.climate.copernicus.eu/">ERA5</a></p>
+  <p class="byline">Companion notebook, reproducing all figures and benchmark numbers:
+    <a href="companion_notebook.html">view in browser</a> &middot;
+    <a href="companion_notebook.ipynb" download>download .ipynb</a></p>
+</header>
+
+<div class="abstract">
+  <span class="label">Abstract</span>
+  The <em>Beyond Euclid</em> framework of Papillon, Sanborn, Mathe et&nbsp;al. gives the right
+  mathematical structure for weather data on Earth: scalar fields over the sphere $S^2$,
+  rotation symmetries via the group $SO(3)$, and geometric statistics that respect both. This
+  article puts that structure to work on real ERA5 temperature data. We track the center of
+  the June 2021 Pacific Northwest heat dome (it migrated 2,635&nbsp;km in seven days) and the
+  year-to-year variability of North American summer heat (77% of the variance lies along a
+  single geodesic axis), and we show with reproducible numbers where flat latitude-longitude
+  shortcuts break, from a few meters of error up to 17,805&nbsp;km, and where geometry fixes
+  them. No new theory is claimed: this is a faithful, tested application of known
+  geometric-statistics methods, and every figure and number regenerates from the accompanying
+  code.
+</div>
+
+<h2><span class="no">1</span>Weather is a signal on a manifold</h2>
+
+<p>A single snapshot of surface temperature assigns one number, degrees, to every location on
+Earth. Locations live on the sphere; temperatures live on the real line. So the object is a
+function</p>
+
+$$ x : S^2 \to \mathbb{R}. $$
+
+<p>Papillon, Sanborn, Mathe and colleagues give a name to objects like this, a
+Euclidean-valued signal over a manifold domain (Card&nbsp;S6 in their taxonomy), and their
+illustration of it is, as it happens, this very temperature-on-a-sphere example from Atmo.
+The naming earns its keep by isolating what matters: the values are ordinary numbers, but the
+domain is curved, so any statistic that summarizes <em>where</em> something happens has to
+respect that curvature.</p>
+
+<p>A second structure hides in plain sight. Where we put longitude zero, and how we orient
+the globe in space, is arbitrary. Physically rotating the sphere should rotate our
+description of the field without changing the field's meaning, which is another way of saying
+the rotation group $SO(3)$ acts on the domain. The paper carries the same temperature example
+with this rotation action as Card&nbsp;S9, and much of what follows is about building
+statistics that behave correctly under that action.</p>
+
+<p>Those are two of the paper's three organizing lenses, geometry and algebra. The third,
+topology, is not needed here, so we leave it out rather than force it.</p>
+
+<h2><span class="no">2</span>The minimal geometry we need</h2>
+
+<p>Only a few objects are required. The sphere is the unit sphere in three dimensions,</p>
+
+$$ S^2 = \{\, p \in \mathbb{R}^3 : \lVert p \rVert = 1 \,\}. $$
+
+<p>It is a two-dimensional surface: two numbers, such as latitude and longitude, pin any
+point, even though we write points as three-dimensional unit vectors. The one constraint
+$\lVert p \rVert = 1$ removes the third degree of freedom.</p>
+
+<p>Distance on the sphere is measured <em>along the surface</em>, not through the interior.
+The great-circle, or geodesic, distance between two points is</p>
+
+$$ d(p, q) = \arccos\langle p, q \rangle. $$
+
+<p>The center of a set of points is the <b>weighted Frechet mean</b>, the point that
+minimizes the sum of squared geodesic distances to the data:</p>
+
+$$ \mu = \arg\min_{p \in S^2} \sum_i w_i \, d(p, p_i)^2 . $$
+
+<p>There is no closed form. It is found by iteration using the exponential and logarithm maps
+of the sphere: the log map $\log_\mu$ sends sphere points into the flat tangent plane at
+$\mu$, and the exp map $\exp_\mu$ sends tangent vectors back onto the sphere. One Karcher
+step averages the data in the tangent plane and moves the estimate along the surface:</p>
+
+$$ v = \frac{\sum_i w_i \log_\mu(p_i)}{\sum_i w_i}, \qquad \mu \leftarrow \exp_\mu(v), $$
+
+<p>repeated until $\lVert v \rVert \to 0$. By construction the Frechet mean stays on the
+manifold, where the ordinary Euclidean average would fall off it, and that contrast is
+exactly why it is the right notion of center on a curved space (Figure&nbsp;6 of the paper
+illustrates precisely this). The same log and exp maps are what later make tangent-space PCA
+meaningful.</p>
+
+<h2><span class="no">3</span>Geometry: Euclidean shortcuts fail when the sphere matters</h2>
+
+<p>The naive alternative to the Frechet mean averages the raw three-dimensional vectors and
+renormalizes back onto the sphere:</p>
+
+$$ \mu_{\text{chord}} = \frac{\sum_i w_i p_i}{\lVert \sum_i w_i p_i \rVert}
+   \qquad \text{versus} \qquad
+   \mu_{\text{geo}} = \arg\min_{p \in S^2} \sum_i w_i \, d(p, p_i)^2 . $$
+
+<p>The chordal mean minimizes straight-line distance through the interior of the ball, not
+distance along the surface. For a small patch these agree, because a small piece of a sphere
+is nearly flat. As the data spreads, the chord increasingly short-cuts through the interior
+and the two answers pull apart.</p>
+
+<figure>
+  <img src="spread_gap.png" alt="The naive-vs-geodesic gap grows with how far the data spreads">
+  <figcaption><b>Figure 1.</b> The gap between the naive (chordal) mean and the geodesic
+  Frechet mean, as a fixed configuration is scaled from a tiny patch to nearly hemispheric.
+  The dashed line is not a point on the curve: it marks the worst realistic case, a
+  near-antipodal global configuration, whose gap sits far above the typical trend.</figcaption>
+</figure>
+
+<p>Three real reference cases anchor the picture:</p>
+
+<table>
+  <tr><th>data spread</th><th>angular size</th><th>gap between naive and geodesic mean</th></tr>
+  <tr><td>tight cluster (three Texas cities)</td><td>&approx; 3&deg;</td><td>0.0 km</td></tr>
+  <tr><td>continental (New York, London, Reykjavik, Lisbon)</td><td>&approx; 33&deg;</td><td>40.7 km</td></tr>
+  <tr><td>global spread (near-antipodal)</td><td>&approx; 94&deg;</td><td>7,758.9 km</td></tr>
+</table>
+
+<p>There is a sharper failure at coordinate seams. If a cluster straddles the &plusmn;180&deg;
+date line, averaging longitudes in degrees gives roughly zero, placing the "center" on the
+opposite side of the planet. In our benchmark that naive latitude-longitude center lands
+<b>17,805&nbsp;km</b> away from the true Frechet center.</p>
+
+<p>One honest nuance: for a compact, mid-latitude weather feature the gap can be small, tens
+of kilometers or less. That does not weaken the method. It tells us precisely when the flat
+approximation is locally adequate and when it is not. The geometry matters in proportion to
+how much of the globe the data spans, and it matters absolutely at seams and poles.</p>
+
+<h2><span class="no">4</span>Algebra: the answer should rotate with the globe</h2>
+
+<p>The reason the Frechet mean has no bad points on the sphere is symmetry. If we rotate the
+data by a rotation $R \in SO(3)$, a coordinate-free center must rotate by the same $R$:</p>
+
+$$ \mu(\{R p_i\}) = R \, \mu(\{p_i\}). $$
+
+<p>This is equivariance under the group action, the algebra lens made concrete. The group is
+$SO(3)$ rotating the sphere, and a statistic that satisfies this equation depends only on the
+data on the sphere, not on how we painted latitude and longitude onto it.</p>
+
+<figure>
+  <img src="equivariance.png" alt="The Frechet mean is SO(3)-equivariant, the naive lat/long mean is not">
+  <figcaption><b>Figure 2.</b> The same cluster before and after rotating the globe by
+  $R \in SO(3)$. The Frechet mean transforms with the globe (equivariance error
+  0.0001&nbsp;km); the naive latitude-longitude mean drifts 782&nbsp;km off the cluster once
+  the rotation carries it near the pole, where the coordinate frame distorts.</figcaption>
+</figure>
+
+<p>The message is not that group theory is elegant. It is that a good statistic respects the
+symmetries of the physical domain, and that respect is exactly why it stays correct
+everywhere. The daily centers we extract later are themselves just points on the sphere, and
+changing the longitude origin is one of these rotations acting on them, so the same
+equivariance protects the whole pipeline.</p>
+
+<div class="valbox">
+  <h3>Validation: does the math actually check out?</h3>
+  <p>Real weather has no known true center, so correctness is checked on synthetic data with
+  a planted answer, reported here as numbers, not figures.</p>
+  <p><b>Frechet mean (tracking).</b></p>
+  <ul>
+    <li>Analytic von Mises-Fisher center recovered with <b>0.00&nbsp;km</b> error.</li>
+    <li>Our from-definition Karcher implementation agrees with GeomStats to
+      $1.90 \times 10^{-4}$&nbsp;km (about 0.19&nbsp;m), after tightening GeomStats'
+      optimizer, whose default stops about 2.7&nbsp;km short. The from-definition version
+      exposed that under-convergence.</li>
+    <li>First-order optimality residual
+      $\lVert \sum_i w_i \log_\mu(p_i) \rVert = 5.99 \times 10^{-16}$.</li>
+    <li>Planted ten-day trajectory recovered with max error <b>0.00&nbsp;km</b>.</li>
+  </ul>
+  <p><b>Principal Geodesic Analysis (variability).</b></p>
+  <ul>
+    <li>Planted principal axis recovered to within <b>0.73&deg;</b>.</li>
+    <li>Our from-definition tangent PCA matches GeomStats TangentPCA, axis difference
+      0.00&deg;.</li>
+    <li>Near a pole, PGA recovers the axis to <b>0.8&deg;</b> while naive latitude-longitude
+      PCA is off by <b>39.2&deg;</b>.</li>
+    <li>One geodesic axis reconstructs a cloud spread over 53&deg; with <b>306&nbsp;km</b>
+      RMS error.</li>
+  </ul>
+</div>
+
+<h2><span class="no">5</span>Application 1: tracking a real heat wave</h2>
+
+<p>Now the real data. We track the center of the June 2021 Pacific Northwest heat dome, one
+of the most extreme heat events on record, using ERA5 2&nbsp;m temperature over a North
+America window for June 24 to 30, 2021. Each day:</p>
+
+<p>1. threshold the hottest region from the temperature field (this classifies which
+locations are hot);<br>
+2. weight each hot cell by its excess heat and by the spherical area element
+$\cos(\text{lat})$, which corrects for the fact that a latitude-longitude grid over-samples
+the poles;<br>
+3. compute the Frechet mean of those locations on $S^2$ (this locates the center);<br>
+4. connect the daily centers with geodesic arcs.</p>
+
+<figure>
+  <img src="era5_heatdome.png" alt="June 2021 heat-dome center tracked with geodesics">
+  <figcaption><b>Figure 3.</b> The June 2021 heat dome's center, tracked day by day with a
+  weighted Frechet mean on $S^2$. The rectangular patch is the ERA5 analysis window we
+  requested, not a rendering artifact; colors are normalized within the window for
+  display.</figcaption>
+</figure>
+
+<p>The recovered center starts over the US Southwest and marches north to the US-Canada
+border by June 30, matching the real event, which culminated in record heat in British
+Columbia. The total Frechet-mean migration is <b>2,635&nbsp;km over seven days</b>.</p>
+
+<p>Honest reading: this is a descriptive tracker, not a forecast model, and this particular
+event is regional and mid-latitude, so the day-to-day naive-versus-Frechet gap is only 13 to
+35&nbsp;km. The value is not a dramatic gap on this one event. It is that the same method
+stays valid without modification at the seams, poles, and global spreads where the naive
+tracker fails outright.</p>
+
+<h2><span class="no">6</span>Application 2: interannual variability with PGA</h2>
+
+<p>The second application asks a variability question: from summer to summer, where does
+North America run unusually hot, and is there a dominant direction to how that center
+moves?</p>
+
+<p>For each summer from 1991 to 2020 we take the ERA5 June-July-August mean temperature,
+subtract the 30-year climatology to get that summer's anomaly, find the center of the
+anomalously hot region with the procedure above, and collect the 30 yearly centers as points
+on $S^2$. We use the anomaly rather than absolute temperature on purpose: absolute summer
+heat always centers on the Southwest deserts, so its center barely moves, while the anomaly
+captures the real year-to-year signal.</p>
+
+<p>Then we run Principal Geodesic Analysis, which is simply PCA done the right way on a
+curved space (the paper's Figure&nbsp;8 places these tangent-space methods within the wider
+family of manifold latent embeddings): take the Frechet mean of the 30 centers, map every
+center into the tangent plane at that mean with the log map, and run ordinary PCA there. The
+tangent covariance is</p>
+
+$$ C = \frac{1}{N} \sum_i u_i u_i^\top, \qquad u_i = \log_\mu(p_i), $$
+
+<p>its eigenvectors are the principal geodesic directions, and the explained-variance ratios
+are $r_k = \lambda_k / \sum_j \lambda_j$.</p>
+
+<figure>
+  <img src="era5_pga_interannual.png" alt="Interannual variability of North American summer heat, 1991 to 2020">
+  <figcaption><b>Figure 4.</b> Thirty summers of heat-anomaly centers (blue), their Frechet
+  mean (black), the principal geodesic axes with explained variance, and the 2$\sigma$
+  geodesic confidence ellipse.</figcaption>
+</figure>
+
+<p>The result is a clean, coordinate-free summary of interannual variability:</p>
+
+<p>mean center of anomalous summer heat at $44.8^\circ$N, $102.5^\circ$W; the first geodesic
+axis explains <b>77%</b> of the variance and runs roughly east-west; the second axis explains
+23%; and the $\pm 2\sigma$ span of the first axis is about <b>3,894&nbsp;km</b>.</p>
+
+<p>In plain terms, the region that runs unusually hot in a given summer shifts mostly east or
+west, far more than north or south. This is a descriptive, not causal, result, and 30 summers
+is a small sample, but it is a clean methodological example of doing PCA correctly on a
+curved domain: naive latitude-longitude PCA would distort the axis, badly so at high
+latitude, as the validation box showed.</p>
+
+<h2><span class="no">7</span>What this contributes, and what it does not</h2>
+
+<p>None of the mathematics here is new. What the article does is take the vocabulary of the
+Beyond Euclid framework and put it to work on real data: temperature as a signal on the
+sphere, rotations of that sphere as a symmetry worth respecting, extracted centers as points
+on a manifold, and the Frechet mean and geodesic PCA as the tools that honor both. GeomStats
+supplies the operations, and writing them out from the definitions did double duty, checking
+the library and, in one case, surfacing a loose default tolerance in it.</p>
+
+<p>The limits, stated plainly:</p>
+
+<ul class="limits">
+  <li>no topology contribution;</li>
+  <li>no new theorem;</li>
+  <li>no operational forecast, this is reanalysis data and descriptive diagnostics;</li>
+  <li>no claim that a single Frechet mean handles multi-center storm fields without first
+    segmenting them.</li>
+</ul>
+
+<p>The value is a reproducible bridge from the paper's structure to a real weather-data
+workflow: real-data figures, property demonstrations, and ground-truth numerical checks, all
+runnable.</p>
+
+<h2><span class="no">8</span>Reproducibility</h2>
+
+<p>Every figure and number above is regenerated by the accompanying code, and the companion
+notebook runs the whole evidence base end to end: you can
+<a href="companion_notebook.html">view it in the browser</a> with all outputs, or
+<a href="companion_notebook.ipynb" download>download the .ipynb</a> and run it yourself
+(<code>pip install -r requirements.txt</code> on Python 3.12; in quick mode it reuses the
+cached ERA5 files, so no API key is needed). The benchmark suites print the validation
+tables; the ERA5 scripts fetch the data (via the Copernicus CDS API) and save the two
+real-data figures; the property figures are standalone scripts.</p>
+
+<pre><code>python tool1_centroid_tracker.py        # Frechet-mean benchmarks (B1-B6)
+python tool3_geodesic_pca.py            # PGA benchmarks (B1-B6)
+python spread_gap_figure.py             # geometry figure
+python equivariance_figure.py           # group-theory figure
+python era5_heatwave.py                 # heat-dome track + figure (needs CDS API key)
+python era5_pga_interannual.py          # 30-year PGA + figure (needs CDS API key)</code></pre>
+
+<h2><span class="no"></span>References</h2>
+
+<ol class="refs">
+  <li>M. Papillon, S. Sanborn, J. Mathe, et al. <em>Beyond Euclid: an illustrated guide to
+    modern machine learning with geometric, topological, and algebraic structures.</em>
+    Mach. Learn.: Sci. Technol. 6 031002 (2025).
+    <a href="https://arxiv.org/abs/2407.09468">arXiv:2407.09468</a>.</li>
+  <li>N. Miolane et al. <em>GeomStats: a Python package for Riemannian geometry in machine
+    learning.</em> JMLR 21(223), 2020.
+    <a href="https://geomstats.github.io/">geomstats.github.io</a>.</li>
+  <li>N. Guigui, N. Miolane, X. Pennec. <em>Introduction to Riemannian geometry and geometric
+    statistics.</em> Foundations and Trends in Machine Learning, 2023.</li>
+  <li>H. Karcher. <em>Riemannian center of mass and mollifier smoothing.</em> Comm. Pure
+    Appl. Math. 30 (1977).</li>
+  <li>P. T. Fletcher, C. Lu, S. M. Pizer, S. Joshi. <em>Principal Geodesic Analysis for the
+    study of nonlinear statistics of shape.</em> IEEE Trans. Med. Imaging 23(8), 2004.</li>
+  <li>H. Hersbach et al. <em>The ERA5 global reanalysis.</em> QJRMS 146, 2020. Data via the
+    <a href="https://cds.climate.copernicus.eu/">Copernicus Climate Data Store</a>.</li>
+</ol>
+
+</main>
+</body>
+</html>

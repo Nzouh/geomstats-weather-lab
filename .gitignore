@@ -1,0 +1,16 @@
+# credentials - never publish
+.env
+.cdsapirc
+
+# environment / caches
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.agents/
+
+# local planning docs - not part of the published project
+START_HERE.md
+DESIGN.md
+BLOG_PLAN.md
+TOOL3_DESIGN.md
